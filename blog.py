@@ -16,12 +16,12 @@
 
 import bcrypt
 import concurrent.futures
-import MySQLdb
+import sqlite3
 import markdown
 import os.path
 import re
 import subprocess
-import torndb
+import tornlite
 import tornado.escape
 from tornado import gen
 import tornado.httpserver
@@ -33,10 +33,7 @@ import unicodedata
 from tornado.options import define, options
 
 define("port", default=8888, help="run on the given port", type=int)
-define("mysql_host", default="127.0.0.1:3306", help="blog database host")
-define("mysql_database", default="blog", help="blog database name")
-define("mysql_user", default="blog", help="blog database user")
-define("mysql_password", default="blog", help="blog database password")
+define("database", default="blog.db", help="blog database name")
 
 
 # A thread pool to be used for password hashing with bcrypt.
@@ -67,21 +64,15 @@ class Application(tornado.web.Application):
         )
         super(Application, self).__init__(handlers, **settings)
         # Have one global connection to the blog DB across all handlers
-        self.db = torndb.Connection(
-            host=options.mysql_host, database=options.mysql_database,
-            user=options.mysql_user, password=options.mysql_password)
+        self.db = tornlite.Connection(options.database)
 
         self.maybe_create_tables()
 
     def maybe_create_tables(self):
         try:
-            self.db.get("SELECT COUNT(*) from entries;")
-        except MySQLdb.ProgrammingError:
-            subprocess.check_call(['mysql',
-                                   '--host=' + options.mysql_host,
-                                   '--database=' + options.mysql_database,
-                                   '--user=' + options.mysql_user,
-                                   '--password=' + options.mysql_password],
+            self.db.get("SELECT COUNT(*) FROM entries;")
+        except sqlite3.ProgrammingError:
+            subprocess.check_call(['sqlite3', options.database],
                                   stdin=open('schema.sql'))
 
 
@@ -93,7 +84,7 @@ class BaseHandler(tornado.web.RequestHandler):
     def get_current_user(self):
         user_id = self.get_secure_cookie("blogdemo_user")
         if not user_id: return None
-        return self.db.get("SELECT * FROM authors WHERE id = %s", int(user_id))
+        return self.db.get("SELECT * FROM authors WHERE id=?", int(user_id))
 
     def any_author_exists(self):
         return bool(self.db.get("SELECT * FROM authors LIMIT 1"))
@@ -111,7 +102,7 @@ class HomeHandler(BaseHandler):
 
 class EntryHandler(BaseHandler):
     def get(self, slug):
-        entry = self.db.get("SELECT * FROM entries WHERE slug = %s", slug)
+        entry = self.db.get("SELECT * FROM entries WHERE slug=?", slug)
         if not entry: raise tornado.web.HTTPError(404)
         self.render("entry.html", entry=entry)
 
@@ -137,7 +128,7 @@ class ComposeHandler(BaseHandler):
         id = self.get_argument("id", None)
         entry = None
         if id:
-            entry = self.db.get("SELECT * FROM entries WHERE id = %s", int(id))
+            entry = self.db.get("SELECT * FROM entries WHERE id=?", int(id))
         self.render("compose.html", entry=entry)
 
     @tornado.web.authenticated
@@ -147,12 +138,12 @@ class ComposeHandler(BaseHandler):
         text = self.get_argument("markdown")
         html = markdown.markdown(text)
         if id:
-            entry = self.db.get("SELECT * FROM entries WHERE id = %s", int(id))
+            entry = self.db.get("SELECT * FROM entries WHERE id=?", int(id))
             if not entry: raise tornado.web.HTTPError(404)
             slug = entry.slug
             self.db.execute(
-                "UPDATE entries SET title = %s, markdown = %s, html = %s "
-                "WHERE id = %s", title, text, html, int(id))
+                "UPDATE entries SET title=?, markdown=?, html=? "
+                "WHERE id=?", title, text, html, int(id))
         else:
             slug = unicodedata.normalize("NFKD", title).encode(
                 "ascii", "ignore")
@@ -160,12 +151,12 @@ class ComposeHandler(BaseHandler):
             slug = "-".join(slug.lower().strip().split())
             if not slug: slug = "entry"
             while True:
-                e = self.db.get("SELECT * FROM entries WHERE slug = %s", slug)
+                e = self.db.get("SELECT * FROM entries WHERE slug=?", slug)
                 if not e: break
                 slug += "-2"
             self.db.execute(
                 "INSERT INTO entries (author_id,title,slug,markdown,html,"
-                "published) VALUES (%s,%s,%s,%s,%s,UTC_TIMESTAMP())",
+                "published) VALUES (?, ?, ?, ?, ?, datetime('now', 'utc'))",
                 self.current_user.id, title, slug, text, html)
         self.redirect("/entry/" + slug)
 
@@ -183,7 +174,7 @@ class AuthCreateHandler(BaseHandler):
             bcrypt.gensalt())
         author_id = self.db.execute(
             "INSERT INTO authors (email, name, hashed_password) "
-            "VALUES (%s, %s, %s)",
+            "VALUES (?, ?, ?)",
             self.get_argument("email"), self.get_argument("name"),
             hashed_password)
         self.set_secure_cookie("blogdemo_user", str(author_id))
@@ -200,7 +191,7 @@ class AuthLoginHandler(BaseHandler):
 
     @gen.coroutine
     def post(self):
-        author = self.db.get("SELECT * FROM authors WHERE email = %s",
+        author = self.db.get("SELECT * FROM authors WHERE email=?",
                              self.get_argument("email"))
         if not author:
             self.render("login.html", error="email not found")

@@ -13,51 +13,38 @@ its prerequisites can be installed with `docker-compose up`.
    run the "helloworld" example application, your environment is set up
    correctly.
 
-2. Install MySQL if needed
+2. Install Python prerequisites
 
-   Consult the documentation for your platform. Under Ubuntu Linux you
-   can run "apt-get install mysql". Under OS X you can download the
-   MySQL PKG file from http://dev.mysql.com/downloads/mysql/
+   Install the packages bcrypt, and markdown (e.g. using pip or
+   easy_install). Note that these packages currently only work on Python 2.
+   Tornado supports Python 3, but this blog demo does not.
 
-3. Install Python prerequisites
+   You may install libffi-dev in Ubuntu by:
+   sudo apt-get install libffi-dev
 
-   Install the packages MySQL-python, torndb, and markdown (e.g. using pip or
-   easy_install). Note that these packages currently only work on
-   Python 2. Tornado supports Python 3, but this blog demo does not.
+   or in Redhat-based OS by:
+   yum install libffi-devel
 
-3. Connect to MySQL and create a database and user for the blog.
-
-   Connect to MySQL as a user that can create databases and users:
-   mysql -u root
-
-   Create a database named "blog":
-   mysql> CREATE DATABASE blog;
-
-   Allow the "blog" user to connect with the password "blog":
-   mysql> GRANT ALL PRIVILEGES ON blog.* TO 'blog'@'localhost' IDENTIFIED BY 'blog';
-
-4. Create the tables in your new database.
+3. Create the tables in your new database.
 
    You can use the provided schema.sql file by running this command:
-   mysql --user=blog --password=blog --database=blog < schema.sql
+   sqlite3 blog < schema.sql
 
    You can run the above command again later if you want to delete the
    contents of the blog and start over after testing.
 
-5. Run the blog example
+4. Run the blog example
 
    With the default user, password, and database you can just run:
    ./blog.py
 
    If you've changed anything, you can alter the default MySQL settings
    with arguments on the command line, e.g.:
-   ./blog.py --mysql_user=casey --mysql_password=happiness --mysql_database=foodblog
+   ./blog.py --database=foodblog.db
 
-6. Visit your new blog
+5. Visit your new blog
 
-   Open http://localhost:8888/ in your web browser. You will be redirected to
-   a Google account sign-in page because the blog uses Google accounts for
-   authentication.
+   Open http://localhost:8888/ in your web browser.
 
    Currently the first user to connect will automatically be given the
    ability to create and edit posts.

@@ -13,6 +13,10 @@
 # WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
 # License for the specific language governing permissions and limitations
 # under the License.
+#
+#
+# imported from:
+#     https://github.com/kernel1983/torndb/blob/master/tornlite.py
 
 """A lightweight wrapper around sqlite3.
 
@@ -68,7 +72,8 @@ class Connection(object):
         self.database = database
         self.max_idle_time = float(max_idle_time)
 
-        args = dict(database=database, isolation_level=None)
+        args = dict(database=database, isolation_level=None,
+                    detect_types=sqlite3.PARSE_DECLTYPES)
 
         self._db = None
         self._db_args = args
@@ -219,18 +224,6 @@ class Row(dict):
             raise AttributeError(name)
 
 if sqlite3 is not None:
-    # Fix the access conversions to properly recognize unicode/binary
-    #FIELD_TYPE = sqlite3.constants.FIELD_TYPE
-    #FLAG = sqlite3.constants.FLAG
-    #CONVERSIONS = copy.copy(sqlite3.converters.conversions)
-
-    #field_types = [FIELD_TYPE.BLOB, FIELD_TYPE.STRING, FIELD_TYPE.VAR_STRING]
-    #if 'VARCHAR' in vars(FIELD_TYPE):
-    #    field_types.append(FIELD_TYPE.VARCHAR)
-
-    #for field_type in field_types:
-    #    CONVERSIONS[field_type] = [(FLAG.BINARY, str)] + CONVERSIONS[field_type]
-
     # Alias some common Sqlite3 exceptions
     IntegrityError = sqlite3.IntegrityError
     OperationalError = sqlite3.OperationalError
